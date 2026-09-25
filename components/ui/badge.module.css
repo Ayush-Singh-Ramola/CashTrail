@@ -1,0 +1,5 @@
+.badge { display: inline-flex; width: fit-content; align-items: center; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 550; line-height: 1.2; white-space: nowrap; }
+.default { border-color: #3c4a59; background: #202b38; color: #c3cfdd; }
+.success { border-color: #2a6349; background: #19372d; color: #88e0ae; }
+.info { border-color: #285d83; background: #142f45; color: #62c7ff; }
+.danger { border-color: #783a42; background: #381e29; color: #ff7c82; }

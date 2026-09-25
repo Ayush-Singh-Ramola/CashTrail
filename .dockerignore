@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+app/generated/prisma
+coverage
+*.log
+.env
+.env.*
+!.env.example
+README.md

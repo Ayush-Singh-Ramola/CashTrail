@@ -1,0 +1,1 @@
+.card { min-width: 0; border: 1px solid var(--ui-card-border, #263342); border-radius: var(--ui-card-radius, 11px); background: var(--ui-card-background, linear-gradient(145deg, #121b25, #101720 82%)); box-shadow: var(--ui-card-shadow, 0 8px 22px #0000000a); }

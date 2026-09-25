@@ -1,0 +1,18 @@
+.link {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #2c3744;
+  border-radius: 10px;
+  color: #c2cedc;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+
+.link:hover { border-color: #3a4a5b; background: #17212c; color: #fff; }
+.badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid #101720; border-radius: 999px; background: #8de34c; color: #142116; font-size: 9px; font-weight: 750; line-height: 13px; text-align: center; }
+
+@media (max-width: 767px) {
+  .link { width: 36px; height: 36px; }
+}

@@ -1,0 +1,12 @@
+.container { border: 1px solid #294638; background: linear-gradient(145deg, #14231f, #111b1b); color: #dce6e1; font-family: var(--font-geist-sans), Arial, sans-serif; }
+.container h2 { color: #edf5ef; }
+.container :global(.text-gray-900) { color: #edf5ef; }
+.container :global(.text-gray-700) { color: #c7d3ce; }
+.container :global(.text-gray-600) { color: #a3b2ac; }
+.container :global(.text-red-700) { color: #ffaaa4; }
+.container :global(input[type="checkbox"]) { accent-color: #8de34c; }
+.container :global(button) { margin-top: 15px; border: 1px solid #426a39; background: #254431; color: #d7f5c1; transition: background .15s ease, opacity .15s ease; }
+.container :global(button:hover:not(:disabled)) { background: #31563b; }
+.container :global(button:disabled) { opacity: .5; }
+.container :global(.bg-white) { border: 1px solid #2b3c35; background: #111a1b; color: #dce6e1; }
+.container :global([role="alert"]) { color: #ffaaa4; }

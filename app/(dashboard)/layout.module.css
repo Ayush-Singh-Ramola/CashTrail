@@ -1,0 +1,89 @@
+.shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #f4f6f8;
+}
+
+.topbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 260px;
+  z-index: 40;
+  display: flex;
+  height: 64px;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 0 25px;
+  border-bottom: 1px solid #202a37;
+  background: rgb(16 23 32 / 96%);
+  color: #e5ebf3;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  backdrop-filter: blur(14px);
+}
+
+.monthLabel { display: flex; min-width: 0; align-items: center; gap: 12px; color: #dce4ef; font-size: 14px; font-weight: 620; }
+.monthLabel svg:first-child { color: #b9c6d5; }
+.monthLabel svg:last-child { color: #8996a7; }
+.topbarActions { display: flex; align-items: center; gap: 15px; }
+.emailLabel { display: flex; align-items: center; gap: 10px; color: #b3bfce; font-size: 12px; }
+.userGlyph { font-size: 17px; line-height: 1; }
+.divider { width: 1px; height: 26px; background: #2b3541; }
+.identity { display: flex; align-items: center; gap: 10px; color: #e5ebf3; font-size: 12px; }
+.avatar { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #35506a; border-radius: 50%; background: #223247; color: #dce8f7; font-size: 11px; font-weight: 700; }
+.identityName { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobileNavigation { display: none; }
+.mobileSignOut { display: none; }
+
+.content {
+  min-width: 0;
+  width: auto;
+  height: 100vh;
+  height: 100dvh;
+  margin-left: 260px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 92px 28px 28px;
+  background: #f4f6f8;
+}
+
+.content:has([data-dashboard-home="true"]),
+.content:has([data-report-page="true"]),
+.content:has([data-transactions-page="true"]) {
+  background: #0b1118;
+  color: #e6edf6;
+}
+
+@media (min-width: 1024px) {
+  .topbar { left: 260px; }
+}
+
+@media (max-width: 1023px) {
+  .topbar { right: 0; left: 0; flex-wrap: nowrap; gap: 0; padding: 0 20px; }
+  .monthLabel { min-height: 58px; }
+  .topbarActions { min-height: 58px; gap: 11px; }
+  .emailLabel { display: none; }
+  .mobileNavigation { position: fixed; inset: auto 0 0; z-index: 60; display: flex; width: 100%; gap: 6px; overflow-x: auto; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #263342; background: rgb(16 23 32 / 96%); box-shadow: 0 -10px 28px #0005; backdrop-filter: blur(14px); scrollbar-width: none; }
+  .mobileNavigation::-webkit-scrollbar { display: none; }
+  .mobileNavigation a { flex: 0 0 auto; padding: 9px 13px; border: 1px solid #2b3541; border-radius: 999px; background: #121c27; color: #c0cad7; font-size: 11px; font-weight: 550; }
+  .mobileNavigation a:hover { border-color: #3a4b5a; background: #17212c; color: #fff; }
+  .content { margin-left: 0; padding: 80px 22px calc(80px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 560px) {
+  .topbar { padding: 0 14px; }
+  .monthLabel { gap: 8px; font-size: 12px; }
+  .topbarActions { gap: 8px; }
+  .identityName { display: none; }
+  .divider { height: 22px; }
+  .mobileSignOut { display: block; }
+  .mobileSignOut button { padding: 6px 8px; border: 1px solid #2b3541; border-radius: 7px; background: transparent; color: #c0cad7; font: inherit; font-size: 10px; }
+  .content { padding: 73px 15px calc(73px + env(safe-area-inset-bottom)); }
+}

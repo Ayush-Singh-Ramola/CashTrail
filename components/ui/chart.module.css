@@ -1,0 +1,7 @@
+.chartContainer { width: 100%; min-width: 0; color: #e8eef6; }
+.tooltip { display: grid; min-width: 150px; gap: 7px; padding: 10px 12px; border: 1px solid #334252; border-radius: 10px; background: #111a24; box-shadow: 0 12px 32px #0008; color: #dce5ef; font-size: 10px; }
+.tooltipLabel { margin: 0 0 1px; color: #9aa9bb; font-size: 9px; font-weight: 550; }
+.tooltipItems { display: grid; gap: 7px; }
+.tooltipItem { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; align-items: center; gap: 7px; white-space: nowrap; }
+.tooltipSeries { width: 7px; height: 7px; border-radius: 50%; }
+.tooltipItem strong { color: #f0f4f9; font-weight: 650; }

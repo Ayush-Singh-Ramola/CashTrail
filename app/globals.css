@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f6f2;
+  --foreground: #1d211f;
+  --muted: #737873;
+  --line: #e8e6df;
+  --green: #244a3a;
+  --font-sans: var(--font-geist-sans);
 }
 
 @theme inline {
@@ -12,15 +16,73 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
+html { min-height: 100%; scroll-behavior: smooth; }
+body { min-height: 100%; margin: 0; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+html:has([data-app-shell="true"]), body:has([data-app-shell="true"]) { height: 100%; overflow: hidden; }
+a { text-decoration: none; }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.landing { max-width: 1440px; margin: 0 auto; padding: 0 7.2%; overflow: hidden; }
+.landing-nav { height: 88px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: #202622; font-size: 15px; font-weight: 680; letter-spacing: -.04em; text-transform: lowercase; }
+.brand-mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 9px; background: var(--green); color: #f7f6f2; font-size: 17px; font-weight: 700; letter-spacing: -.08em; }
+.landing-nav nav { display: flex; align-items: center; gap: 29px; }
+.landing-nav nav > a:first-child { color: #565d58; font-size: 13px; font-weight: 550; }
+.button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 22px; padding: 0 20px; border-radius: 6px; font-size: 13px; font-weight: 600; transition: transform .18s ease, background .18s ease; }
+.button:hover { transform: translateY(-1px); }
+.button-dark { background: #244a3a; color: #fff; }
+.button-dark:hover { background: #18382b; }
+.landing-nav .button { min-height: 39px; padding: 0 15px; gap: 14px; }
+.hero { min-height: 635px; position: relative; display: grid; grid-template-columns: 1fr .84fr; align-items: center; gap: 9%; padding: 73px 0 90px; }
+.hero-copy { position: relative; z-index: 1; padding-bottom: 8px; }
+.eyebrow { color: #747c73; font-size: 10px; font-weight: 700; letter-spacing: .15em; }
+.eyebrow-dot { display: inline-block; width: 7px; height: 7px; margin-right: 9px; border-radius: 50%; background: #d98463; vertical-align: 1px; }
+.hero h1 { margin: 24px 0 18px; font-size: clamp(50px, 6.1vw, 80px); line-height: .99; letter-spacing: -.075em; font-weight: 550; }
+.hero h1 em, .section-heading h2 em { color: #55735d; font-family: Georgia, serif; font-weight: 400; }
+.hero-description { max-width: 410px; margin: 24px 0 28px; color: #707770; font-size: 15px; line-height: 1.8; }
+.hero-actions { display: flex; align-items: center; gap: 17px; }
+.no-hassle { color: #838981; font-size: 11px; }
+.privacy-note { margin-top: 36px; color: #81867f; font-size: 11px; }
+.privacy-note span { margin-right: 8px; color: #53705b; }
+.report-card { position: relative; width: min(100%, 393px); justify-self: center; padding: 25px 25px 20px; border: 1px solid #e7e3d9; border-radius: 9px; background: #fffefa; box-shadow: 0 22px 65px #30382d12; transform: rotate(1.4deg); }
+.report-topline, .chart-heading { display: flex; justify-content: space-between; color: #899087; font-size: 8px; font-weight: 700; letter-spacing: .12em; }
+.report-period { color: #657269; }
+.report-total-label { margin-top: 34px; color: #878d85; font-size: 11px; }
+.report-total { margin-top: 5px; font-size: 46px; line-height: 1; letter-spacing: -.065em; font-weight: 570; }
+.report-total span { margin-right: 3px; color: #7a857a; font-size: 27px; vertical-align: 5px; }
+.report-change { margin-top: 10px; color: #92968e; font-size: 10px; }
+.report-change span { margin-right: 5px; color: #bc725b; font-weight: 700; }
+.report-rule { height: 1px; margin: 22px 0 17px; background: #efede7; }
+.chart-heading { margin-bottom: 15px; }
+.chart-heading span:first-child { color: #434a43; font-size: 11px; letter-spacing: 0; }
+.spend-row { display: flex; justify-content: space-between; margin: 12px 0 7px; color: #545b54; font-size: 11px; }
+.spend-row > div { display: flex; align-items: center; gap: 8px; }
+.spend-row strong { color: #313731; font-size: 11px; font-weight: 600; }
+.spend-dot { width: 7px; height: 7px; border-radius: 50%; }
+.dot-coral { background: #d98267; }.dot-gold { background: #c7a054; }.dot-blue { background: #749a9c; }
+.spend-bar { height: 4px; overflow: hidden; border-radius: 4px; background: #f0eee8; }
+.spend-bar span { height: 100%; display: block; border-radius: 4px; }
+.bar-coral { background: #d98267; }.bar-gold { background: #c7a054; }.bar-blue { background: #749a9c; }
+.report-insight { display: flex; align-items: center; gap: 9px; margin-top: 21px; padding: 12px 10px; border-radius: 5px; background: #f4f4ed; color: #555d54; font-size: 9px; line-height: 1.7; }
+.report-insight > div { flex: 1; }.report-insight b { color: #344339; font-size: 10px; font-weight: 650; }.report-insight > div span { color: #7d847a; }.report-insight > strong { color: #4f6252; font-size: 10px; }.insight-icon { color: #738a60; font-size: 16px; }
+.card-stamp { position: absolute; right: -12px; top: 47%; padding: 7px 9px; border: 1px solid #e8e4db; border-radius: 4px; background: #fffefa; color: #858b81; font-size: 8px; letter-spacing: .1em; transform: rotate(90deg); }
+.hero-scribble { position: absolute; right: 7%; bottom: 48px; color: #777e70; font-family: Georgia, serif; font-size: 13px; font-style: italic; transform: rotate(-5deg); }
+.how-section { padding: 53px 0 76px; border-top: 1px solid var(--line); }
+.section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 34px; }
+.section-heading h2 { margin: 12px 0 0; font-size: 34px; font-weight: 530; letter-spacing: -.055em; }
+.section-heading > p { margin: 0 0 4px; color: #7b817a; font-size: 12px; line-height: 1.8; }
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 7px; background: #fbfaf7; }
+.feature { min-height: 158px; padding: 23px 25px; }.feature + .feature { border-left: 1px solid var(--line); }
+.feature-number { color: #b2846b; font-size: 10px; letter-spacing: .08em; }
+.feature h3 { margin: 17px 0 7px; font-size: 14px; font-weight: 620; letter-spacing: -.02em; }
+.feature p { max-width: 290px; margin: 0; color: #7b817a; font-size: 11px; line-height: 1.75; }
+.landing-footer { min-height: 73px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
+.landing-footer .brand { font-size: 12px; }.landing-footer .brand-mark { width: 25px; height: 25px; font-size: 14px; }
+.landing-footer > span { color: #8b9089; font-size: 10px; }.landing-footer > a:last-child { color: #526b58; font-size: 11px; font-weight: 600; }
+
+@media (max-width: 800px) {
+  .landing { padding: 0 6%; }.hero { grid-template-columns: 1fr; gap: 43px; padding: 64px 0 70px; }.hero h1 { font-size: clamp(55px, 12vw, 77px); }.report-card { width: min(100%, 420px); justify-self: start; margin-left: 4%; }.hero-scribble { right: 4%; bottom: 32px; }.how-section { padding-top: 38px; }
+}
+@media (max-width: 560px) {
+  .landing-nav { height: 72px; }.landing-nav nav { gap: 15px; }.landing-nav nav > a:first-child { font-size: 12px; }.landing-nav .button { min-height: 36px; padding: 0 11px; font-size: 11px; }.hero { padding-top: 53px; }.hero-actions { align-items: flex-start; flex-direction: column; gap: 12px; }.privacy-note { margin-top: 24px; }.report-card { padding: 22px 19px 18px; }.section-heading { align-items: flex-start; flex-direction: column; gap: 13px; }.section-heading h2 { font-size: 30px; }.feature-grid { grid-template-columns: 1fr; }.feature { min-height: auto; padding: 20px; }.feature + .feature { border-top: 1px solid var(--line); border-left: 0; }.feature h3 { margin-top: 10px; }.landing-footer { min-height: 105px; flex-wrap: wrap; gap: 8px; padding: 17px 0; }.landing-footer > span { order: 3; width: 100%; }.landing-footer > a:last-child { font-size: 10px; }
 }
