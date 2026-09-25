@@ -1,21 +1,15 @@
 .shell {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100vh;
   background: #f4f6f8;
 }
 
+.mainArea { min-width: 0; min-height: 100vh; }
+
 .topbar {
-  position: fixed;
+  position: sticky;
   top: 0;
-  right: 0;
-  left: 260px;
   z-index: 40;
   display: flex;
-  height: 64px;
   min-height: 64px;
   align-items: center;
   justify-content: space-between;
@@ -43,30 +37,27 @@
 
 .content {
   min-width: 0;
-  width: auto;
-  height: 100vh;
-  height: 100dvh;
-  margin-left: 260px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 92px 28px 28px;
+  padding: 28px;
   background: #f4f6f8;
 }
 
 .content:has([data-dashboard-home="true"]),
 .content:has([data-report-page="true"]),
-.content:has([data-transactions-page="true"]) {
+.content:has([data-transactions-page="true"]),
+.content:has([data-import-page="true"]),
+.content:has([data-compare-page="true"]),
+.content:has([data-merchant-page="true"]) {
+  min-height: calc(100vh - 64px);
   background: #0b1118;
   color: #e6edf6;
 }
 
 @media (min-width: 1024px) {
-  .topbar { left: 260px; }
+  .mainArea { margin-left: 260px; }
 }
 
 @media (max-width: 1023px) {
-  .topbar { right: 0; left: 0; flex-wrap: nowrap; gap: 0; padding: 0 20px; }
+  .topbar { flex-wrap: nowrap; gap: 0; padding: 0 20px; }
   .monthLabel { min-height: 58px; }
   .topbarActions { min-height: 58px; gap: 11px; }
   .emailLabel { display: none; }
@@ -74,7 +65,7 @@
   .mobileNavigation::-webkit-scrollbar { display: none; }
   .mobileNavigation a { flex: 0 0 auto; padding: 9px 13px; border: 1px solid #2b3541; border-radius: 999px; background: #121c27; color: #c0cad7; font-size: 11px; font-weight: 550; }
   .mobileNavigation a:hover { border-color: #3a4b5a; background: #17212c; color: #fff; }
-  .content { margin-left: 0; padding: 80px 22px calc(80px + env(safe-area-inset-bottom)); }
+  .content { padding: 22px 22px calc(22px + 58px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 560px) {
@@ -85,5 +76,5 @@
   .divider { height: 22px; }
   .mobileSignOut { display: block; }
   .mobileSignOut button { padding: 6px 8px; border: 1px solid #2b3541; border-radius: 7px; background: transparent; color: #c0cad7; font: inherit; font-size: 10px; }
-  .content { padding: 73px 15px calc(73px + env(safe-area-inset-bottom)); }
+  .content { padding: 15px 15px calc(15px + 58px + env(safe-area-inset-bottom)); }
 }

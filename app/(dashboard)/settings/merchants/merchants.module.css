@@ -1,0 +1,118 @@
+.page {
+  display: grid;
+  width: min(100%, 1480px);
+  gap: 18px;
+  margin: 0 auto;
+  color: #e8eef6;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+.pageHeader { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.titleGroup { display: flex; min-width: 0; align-items: center; gap: 17px; }
+.titleIcon { display: grid; width: 88px; height: 88px; flex: 0 0 auto; place-items: center; border: 1px solid #155848; border-radius: 22px; background: linear-gradient(145deg, #0d4e48, #0e343b); color: #33e0b0; box-shadow: inset 0 1px #ffffff10, 0 9px 25px #071d2440; }
+.titleGroup h1 { margin: 0; color: #edf3fb; font-size: clamp(28px, 2.5vw, 36px); font-weight: 690; letter-spacing: -.045em; }
+.titleGroup p { margin: 6px 0 0; color: #9aacc3; font-size: 14px; line-height: 1.5; }
+.controls { display: flex; flex: 0 0 auto; align-items: center; gap: 15px; }
+.searchBox, .filterBox { display: flex; height: 60px; align-items: center; gap: 14px; border: 1px solid #263c5b; border-radius: 14px; background: linear-gradient(145deg, #14213a, #111c31); box-shadow: 0 6px 15px #020a171f; color: #91a9c8; }
+.searchBox { width: clamp(230px, 25vw, 350px); padding: 0 18px; }
+.searchBox:focus-within, .filterBox:focus-within { border-color: #39706c; box-shadow: 0 0 0 3px #31c7a11a; }
+.searchBox input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #e8eef6; font: inherit; font-size: 13px; }
+.searchBox input::placeholder { color: #8fa3bf; opacity: 1; }
+.searchBox input::-webkit-search-cancel-button { cursor: pointer; }
+.filterBox { position: relative; width: 140px; gap: 10px; padding: 0 14px 0 17px; }
+.filterBox select { width: 100%; height: 100%; appearance: none; border: 0; outline: 0; background: transparent; color: #b8c9de; font: inherit; font-size: 12px; cursor: pointer; color-scheme: dark; }
+.filterBox option { background: #121c2c; color: #d8e3f0; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+.errorNotice { margin: 0; padding: 12px 15px; border: 1px solid #713b43; border-radius: 10px; background: #2c1b24; color: #ffaaa1; font-size: 12px; }
+
+.editorCard { --ui-card-border: #2a3a4d; --ui-card-radius: 14px; --ui-card-background: linear-gradient(145deg, #121b25, #101720 82%); --ui-card-shadow: 0 8px 22px #0000000a; display: grid; gap: 18px; padding: 21px; }
+.editorHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.editorEyebrow { margin: 0 0 5px !important; color: #82c75d !important; font-size: 8px !important; font-weight: 740; letter-spacing: .13em; }
+.editorHeading h2 { margin: 0; color: #edf3fb; font-size: 17px; font-weight: 660; }
+.editorHeading p:last-child { margin: 5px 0 0; color: #8494a8; font-size: 10px; }
+.closeEditor { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #334252; border-radius: 8px; background: #17222e; color: #a4b1c0; cursor: pointer; }
+.closeEditor svg { transform: rotate(180deg); }
+.editorForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.editorForm label { display: grid; min-width: 0; gap: 7px; color: #b3c0cf; font-size: 10px; font-weight: 570; }
+.editorForm input, .editorForm select, .editorForm textarea { width: 100%; min-width: 0; border: 1px solid #2b3948; border-radius: 8px; outline: 0; background: #0e1721; color: #e4ebf3; font: inherit; font-size: 11px; }
+.editorForm input, .editorForm select { height: 39px; padding: 0 11px; }
+.editorForm textarea { padding: 10px 11px; resize: vertical; line-height: 1.55; }
+.editorForm input:focus, .editorForm select:focus, .editorForm textarea:focus { border-color: #75b94e; box-shadow: 0 0 0 3px #8ac96a1e; }
+.editorForm select { color-scheme: dark; }
+.editorForm option { background: #111a24; }
+.patternField { grid-column: 1 / -1; }
+.patternField small { color: #7f8da0; font-size: 9px; font-weight: 400; line-height: 1.5; }
+.editorActions { display: flex; grid-column: 1 / -1; align-items: center; gap: 9px; }
+.saveButton, .cancelButton { min-height: 38px; padding: 0 14px; border-radius: 8px; font: inherit; font-size: 10px; font-weight: 640; cursor: pointer; }
+.saveButton { border: 1px solid #88d850; background: #8de34c; color: #142116; }
+.saveButton:hover:not(:disabled) { background: #a0ef67; }
+.saveButton:disabled, .cancelButton:disabled { opacity: .65; cursor: wait; }
+.cancelButton { border: 1px solid #334252; background: #17222e; color: #bac6d4; }
+.cancelButton:hover:not(:disabled) { background: #202c39; }
+
+.merchantList { --ui-card-border: #263b5a; --ui-card-radius: 20px; --ui-card-background: linear-gradient(145deg, #111d34, #101a30 76%); --ui-card-shadow: 0 10px 28px #02091426; min-width: 0; overflow: hidden; padding: 7px 14px; }
+.merchantRows { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.merchantRow { display: flex; min-width: 0; min-height: 81px; align-items: center; gap: 27px; padding: 12px 20px; border: 1px solid #253859; border-radius: 15px; background: linear-gradient(105deg, #14213c, #111c34 64%, #121e38); box-shadow: 0 4px 12px #050d2016; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.merchantRow:hover { transform: translateY(-1px); border-color: #345176; background: linear-gradient(105deg, #172744, #13203a 64%, #14223e); }
+.merchantMark { display: grid; width: 56px; height: 56px; flex: 0 0 auto; place-items: center; border: 1px solid #ffffff13; border-radius: 15px; color: #f7f9ff; font-size: 26px; font-weight: 700; letter-spacing: -.04em; box-shadow: inset 0 1px #ffffff24, 0 5px 12px #0003; }
+.merchantMark[data-tone="0"] { background: linear-gradient(145deg, #1c2740, #101722); }
+.merchantMark[data-tone="1"] { background: linear-gradient(145deg, #0871ef, #2649dc); color: #f7ed5e; }
+.merchantMark[data-tone="2"] { background: linear-gradient(145deg, #a125ef, #6024dc); }
+.merchantMark[data-tone="3"] { background: linear-gradient(145deg, #ffae00, #ee7914); }
+.merchantMark[data-tone="4"] { background: linear-gradient(145deg, #7139ea, #4028d8); }
+.merchantMark[data-tone="5"] { background: linear-gradient(145deg, #0e9fec, #075ddd); }
+.merchantMark[data-tone="6"] { background: linear-gradient(145deg, #ed4384, #df254d); }
+.merchantDetails { display: grid; min-width: 0; flex: 1; gap: 5px; }
+.merchantDetails strong { overflow: hidden; color: #e9f0fb; font-size: 16px; font-weight: 590; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
+.merchantDetails small { overflow: hidden; color: #91a5c0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.merchantAction { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 42px; padding: 0 0 0 6px; border: 0; background: transparent; color: #9bb2d0; cursor: pointer; }
+.merchantAction > svg { transform: rotate(-90deg); transition: transform .16s ease, color .16s ease; }
+.merchantAction:hover > svg { transform: translateX(2px) rotate(-90deg); color: #dbe7f5; }
+.correctBadge { display: inline-flex; min-height: 40px; align-items: center; gap: 9px; padding: 0 15px !important; border: 1px solid #147366 !important; border-radius: 999px !important; background: linear-gradient(100deg, #0c655f, #075146) !important; color: #7df088 !important; font-size: 12px !important; font-weight: 550 !important; box-shadow: inset 0 1px #ffffff12; }
+.correctBadge svg { color: #2de4d0; }
+.listMessage { padding: 30px 20px; color: #91a1b4; font-size: 12px; text-align: center; }
+.emptyState { display: grid; justify-items: center; gap: 7px; padding: 42px 20px; text-align: center; }
+.emptyIcon { display: grid; width: 43px; height: 43px; margin-bottom: 3px; place-items: center; border: 1px solid #2c5948; border-radius: 13px; background: #183126; color: #8de34c; }
+.emptyState strong { color: #dce5ee; font-size: 13px; font-weight: 630; }
+.emptyState p { margin: 0; color: #8392a4; font-size: 10px; }
+
+@media (max-width: 1100px) {
+  .pageHeader { align-items: flex-start; flex-direction: column; }
+  .controls { width: 100%; }
+  .searchBox { flex: 1; width: auto; }
+}
+
+@media (max-width: 650px) {
+  .page { gap: 14px; }
+  .titleGroup { align-items: flex-start; gap: 12px; }
+  .titleIcon { width: 58px; height: 58px; border-radius: 16px; }
+  .titleIcon svg { width: 22px; height: 22px; }
+  .titleGroup h1 { font-size: 26px; }
+  .titleGroup p { max-width: 340px; font-size: 11px; }
+  .controls { gap: 8px; }
+  .searchBox, .filterBox { height: 47px; border-radius: 11px; }
+  .searchBox { gap: 9px; padding: 0 11px; }
+  .filterBox { width: 116px; gap: 7px; padding: 0 9px; }
+  .filterBox select { font-size: 10px; }
+  .merchantList { padding: 6px; border-radius: 15px; }
+  .merchantRow { min-height: 70px; gap: 12px; padding: 10px; border-radius: 11px; }
+  .merchantMark { width: 44px; height: 44px; border-radius: 12px; font-size: 20px; }
+  .merchantDetails strong { font-size: 13px; }
+  .merchantDetails small { font-size: 9px; }
+  .merchantAction { gap: 8px; }
+  .correctBadge { min-height: 34px; gap: 5px; padding: 0 8px !important; font-size: 9px !important; }
+  .correctBadge svg { width: 12px; height: 12px; }
+  .merchantAction > svg { width: 14px; }
+  .editorCard { padding: 15px; }
+}
+
+@media (max-width: 420px) {
+  .controls { align-items: stretch; flex-direction: column; }
+  .filterBox { width: 100%; }
+  .merchantRow { gap: 9px; }
+  .merchantMark { width: 39px; height: 39px; font-size: 18px; }
+  .correctBadge { min-height: 31px; padding: 0 7px !important; font-size: 8px !important; }
+  .merchantAction { gap: 4px; }
+  .editorForm { grid-template-columns: 1fr; }
+  .patternField, .editorActions { grid-column: auto; }
+}

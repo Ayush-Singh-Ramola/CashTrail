@@ -22,7 +22,10 @@ export type DashboardIconName =
   | "clock"
   | "arrowRight"
   | "chevron"
-  | "user";
+  | "filter"
+  | "check"
+  | "user"
+  | "pulse";
 
 const iconPaths: Record<DashboardIconName, ReactNode> = {
   home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></>,
@@ -46,7 +49,10 @@ const iconPaths: Record<DashboardIconName, ReactNode> = {
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   arrowRight: <><path d="M4 12h15M13 6l6 6-6 6" /></>,
   chevron: <><path d="m7 10 5 5 5-5" /></>,
+  filter: <><path d="M4 5h16l-6.5 7.5V19l-3 1v-7.5L4 5Z" /></>,
+  check: <><path d="m5 12 4 4L19 6" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+  pulse: <><path d="M2 12h4l2.2-6.4L13 19l2.7-8 2.2 3H22" /></>,
 };
 
 export function DashboardIcon({
