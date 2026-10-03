@@ -9,6 +9,7 @@ type ImportResult = {
   transactionCount: number;
   income: number;
   spent: number;
+  alreadyImported: boolean;
 };
 
 function formatRupees(amount: number) {
@@ -118,9 +119,10 @@ export default function ImportsPage() {
 
       const id = String(data.importId);
       setImportId(id);
+      const alreadyImported = Boolean(data.alreadyImported);
       setProgress(100);
 
-      const resultResponse = await fetch(`/api/imports/${id}`);
+      const resultResponse = await fetch(`/api/imports/${id}`, { cache: "no-store" });
       const resultData = await resultResponse.json();
       if (!resultResponse.ok) throw new Error(resultData.error || "Processing failed");
 
@@ -128,6 +130,7 @@ export default function ImportsPage() {
         transactionCount: resultData.transactionCount,
         income: resultData.income,
         spent: resultData.spent,
+        alreadyImported,
       });
       setStage("done");
     } catch (uploadError) {
@@ -254,15 +257,17 @@ export default function ImportsPage() {
       <span className={`${styles.processingMark} ${styles.successMark}`} aria-hidden="true"><DashboardIcon name="check" size={28} /></span>
       <p className={styles.overline}>IMPORT COMPLETE</p>
       <h1>Your statement is ready</h1>
-      <p className={styles.subtitle}>{result?.transactionCount ?? 0} transactions processed</p>
+      <p className={styles.subtitle}>{result?.alreadyImported
+        ? "This exact file was already imported; these are its existing transactions."
+        : `${result?.transactionCount ?? 0} transactions processed from this file`}</p>
 
       <div className={styles.resultGrid}>
-        <article><span>Money received</span><strong>{formatRupees(result?.income ?? 0)}</strong></article>
-        <article><span>Money spent</span><strong>{formatRupees(result?.spent ?? 0)}</strong></article>
+        <article><span>Received in this file</span><strong>{formatRupees(result?.income ?? 0)}</strong></article>
+        <article><span>Spent in this file</span><strong>{formatRupees(result?.spent ?? 0)}</strong></article>
       </div>
       <div className={styles.resultActions}>
-        <button type="button" className={styles.secondaryButton} onClick={() => importId && router.push(`/imports/${importId}`)}>Review transactions</button>
-        <button type="button" className={styles.uploadButton} onClick={() => router.push("/dashboard")}>View report <DashboardIcon name="arrowRight" size={17} /></button>
+        <button type="button" className={styles.uploadButton} onClick={() => importId && router.push(`/imports/${importId}`)}>View this import <DashboardIcon name="arrowRight" size={17} /></button>
+        <button type="button" className={styles.secondaryButton} onClick={() => router.push("/dashboard")}>Account dashboard</button>
       </div>
       <button type="button" className={styles.againButton} onClick={reset}>Import another statement</button>
     </section>

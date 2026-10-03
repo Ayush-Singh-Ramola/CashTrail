@@ -26,25 +26,34 @@ interface ImportData {
 
 export default function ImportReviewPage() {
   const params = useParams();
+  const importId = String(params.id);
   const [data, setData] = useState<ImportData | null>(null);
+  const [loadedImportId, setLoadedImportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [categories, setCategories] = useState<{ id: number; name: string; color: string | null }[]>([]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal: AbortSignal) => {
     try {
-      const res = await fetch(`/api/imports/${params.id}`);
+      const res = await fetch(`/api/imports/${importId}`, { cache: "no-store", signal });
       if (res.ok) {
         const json = await res.json();
-        setData(json);
+        if (!signal.aborted) {
+          setData(json);
+          setEditingId(null);
+          setSelectedCategoryId(null);
+        }
       }
     } catch (error) {
-      console.error("Failed to fetch import:", error);
+      if (!signal.aborted) console.error("Failed to fetch import:", error);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoadedImportId(importId);
+        setLoading(false);
+      }
     }
-  }, [params.id]);
+  }, [importId]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -59,9 +68,10 @@ export default function ImportReviewPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
     fetchCategories();
+    return () => controller.abort();
   }, [params.id, fetchData, fetchCategories]);
 
   const handleCategoryChange = async (transactionId: number, categoryId: number) => {
@@ -89,7 +99,7 @@ export default function ImportReviewPage() {
     setEditingId(null);
   };
 
-  if (loading) {
+  if (loading || loadedImportId !== importId) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="animate-pulse space-y-6">
@@ -100,7 +110,7 @@ export default function ImportReviewPage() {
     );
   }
 
-  if (!data) {
+  if (!data || data.id !== Number(importId)) {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
         <h1 className="text-2xl font-bold text-gray-900">Import not found</h1>
@@ -122,11 +132,11 @@ export default function ImportReviewPage() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-          <p className="text-sm text-gray-500">Money Received</p>
+          <p className="text-sm text-gray-500">Received in this file</p>
           <p className="text-2xl font-bold text-green-600">₹{data.income.toLocaleString("en-IN")}</p>
         </div>
         <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-          <p className="text-sm text-gray-500">Money Spent</p>
+          <p className="text-sm text-gray-500">Spent in this file</p>
           <p className="text-2xl font-bold text-red-600">₹{data.spent.toLocaleString("en-IN")}</p>
         </div>
       </div>
@@ -226,7 +236,7 @@ export default function ImportReviewPage() {
           href="/dashboard"
           className="flex-1 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 text-center transition-colors"
         >
-          View Report
+          Account dashboard
         </Link>
         <Link
           href="/imports"

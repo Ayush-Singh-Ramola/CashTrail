@@ -39,7 +39,7 @@ model Import {
   user             User          @relation(fields: [userId], references: [id])
   transactions     Transaction[]
 
-  @@unique([userId, contentHash])
+  @@index([userId, contentHash])
   @@index([userId, createdAt])
 }
 

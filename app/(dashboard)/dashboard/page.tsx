@@ -11,6 +11,7 @@ import {
 } from "date-fns";
 import type { CSSProperties } from "react";
 import { DashboardIcon } from "@/components/dashboard-icon";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 import styles from "./dashboard.module.css";
 
 const chartPalette = ["#89df4b", "#3987f4", "#9e72ef", "#f39646", "#eb6277", "#8293a9"];
@@ -43,39 +44,39 @@ function getCategoryColor(color: string | null | undefined, index: number) {
     : chartPalette[index % chartPalette.length];
 }
 
-async function getDashboardData(userId: number, now: Date): Promise<DashboardData> {
-  const currentMonthStart = startOfMonth(now);
-  const currentMonthEnd = endOfMonth(now);
-  const previousMonth = subMonths(now, 1);
+async function getDashboardData(userId: number, periodDate: Date, duplicateImportIds: number[]): Promise<DashboardData> {
+  const currentMonthStart = startOfMonth(periodDate);
+  const currentMonthEnd = endOfMonth(periodDate);
+  const previousMonth = subMonths(periodDate, 1);
   const lastMonthStart = startOfMonth(previousMonth);
   const lastMonthEnd = endOfMonth(previousMonth);
 
   const [currentMonthTxns, lastMonthTxns, topMerchants] = await Promise.all([
     prisma.transaction.findMany({
-      where: {
+      where: excludeDuplicateImports({
         userId,
         transactionDate: { gte: currentMonthStart, lte: currentMonthEnd },
         type: "EXPENSE",
-      },
+      }, duplicateImportIds),
       include: { category: true, merchant: true },
       orderBy: { transactionDate: "desc" },
     }),
     prisma.transaction.findMany({
-      where: {
+      where: excludeDuplicateImports({
         userId,
         transactionDate: { gte: lastMonthStart, lte: lastMonthEnd },
         type: "EXPENSE",
-      },
+      }, duplicateImportIds),
       include: { category: true },
     }),
     prisma.transaction.groupBy({
       by: ["merchantId"],
-      where: {
+      where: excludeDuplicateImports({
         userId,
         transactionDate: { gte: currentMonthStart, lte: currentMonthEnd },
         type: "EXPENSE",
         merchantId: { not: null },
-      },
+      }, duplicateImportIds),
       _sum: { amount: true },
       _count: { id: true },
       orderBy: { _sum: { amount: "desc" } },
@@ -148,7 +149,7 @@ async function getDashboardData(userId: number, now: Date): Promise<DashboardDat
     amount: Number(transaction.amount),
   }));
 
-  const daysInMonth = getDaysInMonth(now);
+  const daysInMonth = getDaysInMonth(periodDate);
   const currentByDay = Array.from({ length: daysInMonth }, () => 0);
   const previousByDay = Array.from({ length: getDaysInMonth(previousMonth) }, () => 0);
   for (const transaction of currentMonthTxns) {
@@ -157,7 +158,7 @@ async function getDashboardData(userId: number, now: Date): Promise<DashboardDat
   for (const transaction of lastMonthTxns) {
     previousByDay[transaction.transactionDate.getDate() - 1] += Number(transaction.amount);
   }
-  const visibleDays = Math.min(now.getDate(), daysInMonth);
+  const visibleDays = Math.min(periodDate.getDate(), daysInMonth);
   const dailySpend = Array.from({ length: visibleDays }, (_, index) => ({
     day: index + 1,
     current: currentByDay[index],
@@ -255,7 +256,7 @@ function SpendingChart({ data, monthName, monthAbbreviation, previousMonthName }
           </text>
         ))}
       </svg>
-      {maximumValue === 0 && <p className={styles.chartEmpty}>Your spending this month will appear here as transactions are added.</p>}
+      {maximumValue === 0 && <p className={styles.chartEmpty}>Your spending in {monthName} will appear here as transactions are added.</p>}
     </div>
   );
 }
@@ -265,9 +266,35 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   const now = new Date();
-  const previousMonth = subMonths(now, 1);
-  const data = await getDashboardData(session.id, now);
-  const monthName = format(now, "MMMM yyyy");
+  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const latestExpense = await prisma.transaction.findFirst({
+    where: excludeDuplicateImports({ userId: session.id, type: "EXPENSE", transactionDate: { lte: now } }, duplicateImportIds),
+    orderBy: { transactionDate: "desc" },
+    select: { transactionDate: true },
+  });
+  const latestImport = await prisma.import.findFirst({
+    where: { userId: session.id, status: "COMPLETED" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, fileName: true, transactionCount: true },
+  });
+  const latestImportTotals = latestImport
+    ? await prisma.transaction.groupBy({
+        by: ["type"],
+        where: { userId: session.id, importId: latestImport.id, type: { in: ["INCOME", "EXPENSE"] } },
+        _sum: { amount: true },
+      })
+    : [];
+  const latestImportIncome = Number(latestImportTotals.find((total) => total.type === "INCOME")?._sum.amount ?? 0);
+  const latestImportSpent = Number(latestImportTotals.find((total) => total.type === "EXPENSE")?._sum.amount ?? 0);
+  const hasCurrentMonthSpending = latestExpense
+    ? latestExpense.transactionDate.getFullYear() === now.getFullYear()
+      && latestExpense.transactionDate.getMonth() === now.getMonth()
+    : false;
+  const periodDate = latestExpense && !hasCurrentMonthSpending ? endOfMonth(latestExpense.transactionDate) : now;
+  const previousMonth = subMonths(periodDate, 1);
+  const data = await getDashboardData(session.id, periodDate, duplicateImportIds);
+  const monthName = format(periodDate, "MMMM yyyy");
+  const periodMonthName = format(periodDate, "MMMM");
   const previousMonthName = format(previousMonth, "MMMM yyyy");
   const changeDown = data.changePercent < 0;
   const comparisonDelta = data.currentTotal - data.lastTotal;
@@ -295,13 +322,32 @@ export default async function DashboardPage() {
         <div>
           <p className={styles.overline}><span /> YOUR MONEY, AT A GLANCE</p>
           <h1>{greeting}, {firstName}</h1>
-          <p className={styles.subtitle}>Here&apos;s what&apos;s happening with your money this month.</p>
+          <p className={styles.subtitle}>Your account activity in {monthName}, across imported statements.</p>
         </div>
         <Link href="/imports" className={styles.importButton}>
           <DashboardIcon name="import" size={17} />
           Import statement
         </Link>
       </div>
+
+      {latestImport && (
+        <article className={`${styles.panel} ${styles.latestImportPanel}`} aria-label="Latest statement summary">
+          <div className={styles.latestImportMeta}>
+            <p>Latest statement</p>
+            <strong title={latestImport.fileName}>{latestImport.fileName}</strong>
+            <small>{latestImport.transactionCount.toLocaleString("en-IN")} transactions in this file</small>
+          </div>
+          <div className={styles.latestImportIncome}>
+            <span>Received in this file</span>
+            <strong>{money(latestImportIncome)}</strong>
+          </div>
+          <div className={styles.latestImportSpend}>
+            <span>Spent in this file</span>
+            <strong>{money(latestImportSpent)}</strong>
+          </div>
+          <Link href={`/imports/${latestImport.id}`} className={styles.accentLink}>View this import <DashboardIcon name="arrowRight" size={13} /></Link>
+        </article>
+      )}
 
       <section className={styles.kpiGrid} aria-label="Monthly spending summary">
         <article className={styles.kpiCard}>
@@ -321,7 +367,7 @@ export default async function DashboardPage() {
           <div className={styles.kpiContent}>
             <p className={styles.kpiLabel}>Transactions</p>
             <p className={styles.kpiValue}>{data.transactionCount.toLocaleString("en-IN")}</p>
-            <p className={styles.kpiFoot}>This month</p>
+            <p className={styles.kpiFoot}>{periodMonthName}</p>
           </div>
           <DashboardIcon name="trend" size={19} />
         </article>
@@ -354,7 +400,7 @@ export default async function DashboardPage() {
             </div>
             <Link href="/compare" className={styles.subtleLink}>Compare <DashboardIcon name="arrowRight" size={14} /></Link>
           </div>
-          <SpendingChart data={data.dailySpend} monthName={format(now, "MMMM")} monthAbbreviation={format(now, "MMM")} previousMonthName={format(previousMonth, "MMMM")} />
+          <SpendingChart data={data.dailySpend} monthName={periodMonthName} monthAbbreviation={format(periodDate, "MMM")} previousMonthName={format(previousMonth, "MMMM")} />
         </article>
 
         <article className={`${styles.panel} ${styles.categoryPanel}`}>
@@ -406,7 +452,7 @@ export default async function DashboardPage() {
               <span className={styles.insightBulb}><DashboardIcon name="lightbulb" size={17} /></span>
               <p><strong>{data.foodDeliveryTotal > 0 || data.smallTotal > 0 ? "A small change adds up" : "Your money, made clearer"}</strong>
                 <span>{data.foodDeliveryTotal > 0 || data.smallTotal > 0
-                  ? `Try trimming these two areas by 20% to keep more of your ${format(now, "MMMM")} budget.`
+                  ? `Try trimming these two areas by 20% to keep more of your ${periodMonthName} budget.`
                   : "Import a statement to find useful ways to save."}</span>
               </p>
             </div>
@@ -439,7 +485,7 @@ export default async function DashboardPage() {
 
         <article className={`${styles.panel} ${styles.transactionsPanel}`}>
           <div className={styles.panelHeader}>
-            <div className={styles.panelTitleWithIcon}><DashboardIcon name="clock" size={18} /><div><h2>Recent transactions</h2><p>Your latest activity this month</p></div></div>
+            <div className={styles.panelTitleWithIcon}><DashboardIcon name="clock" size={18} /><div><h2>Recent transactions</h2><p>Your latest activity in {periodMonthName}</p></div></div>
             <Link href="/transactions" className={styles.accentLink}>View all <DashboardIcon name="arrowRight" size={13} /></Link>
           </div>
           {data.recentTransactions.length > 0 ? (
@@ -466,10 +512,10 @@ export default async function DashboardPage() {
 
         <article className={`${styles.panel} ${styles.comparisonPanel}`}>
           <div className={styles.panelHeader}>
-            <div className={styles.panelTitleWithIcon}><DashboardIcon name="reports" size={18} /><div><h2>Monthly comparison</h2><p>{format(previousMonth, "MMMM")} vs {format(now, "MMMM")}</p></div></div>
+            <div className={styles.panelTitleWithIcon}><DashboardIcon name="reports" size={18} /><div><h2>Monthly comparison</h2><p>{format(previousMonth, "MMMM")} vs {periodMonthName}</p></div></div>
           </div>
           <div className={styles.comparisonTotals}>
-            <div><span>This month</span><strong>{money(data.currentTotal)}</strong></div>
+            <div><span>{periodMonthName}</span><strong>{money(data.currentTotal)}</strong></div>
             <span className={styles.comparisonDivider} />
             <div><span>Last month</span><strong>{money(data.lastTotal)}</strong></div>
           </div>
@@ -486,7 +532,7 @@ export default async function DashboardPage() {
             <div className={styles.monthBarGroup}>
               <span className={styles.barValue}>{money(data.currentTotal)}</span>
               <span className={`${styles.monthBar} ${styles.currentMonthBar}`} style={{ height: `${Math.max(8, data.currentTotal / Math.max(data.currentTotal, data.lastTotal, 1) * 100)}%` }} />
-              <span className={styles.monthLabel}>{format(now, "MMM")}</span>
+              <span className={styles.monthLabel}>{format(periodDate, "MMM")}</span>
             </div>
           </div>
         </article>

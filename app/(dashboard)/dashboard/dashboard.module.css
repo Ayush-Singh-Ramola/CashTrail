@@ -14,6 +14,14 @@
 .subtitle { margin: 5px 0 0; color: #8d9aad; font-size: 12px; }
 .importButton { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 9px; padding: 0 15px; border: 1px solid #91e557; border-radius: 8px; background: #8de34c; box-shadow: 0 5px 20px #82d63b1a; color: #142116; font-size: 12px; font-weight: 700; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
 .importButton:hover { transform: translateY(-1px); background: #a0ef67; box-shadow: 0 8px 22px #82d63b35; }
+.latestImportPanel { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 17px; }
+.latestImportMeta { display: grid; min-width: 0; gap: 3px; }
+.latestImportMeta p, .latestImportIncome span, .latestImportSpend span { margin: 0; color: #92a0b2; font-size: 10px; }
+.latestImportMeta strong { overflow: hidden; color: #e8eef6; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.latestImportMeta small { color: #77869a; font-size: 9px; }
+.latestImportIncome, .latestImportSpend { display: grid; flex: 0 0 auto; gap: 4px; }
+.latestImportIncome strong { color: #75b9ff; font-size: 18px; font-weight: 680; }
+.latestImportSpend strong { color: #92e35e; font-size: 18px; font-weight: 680; }
 
 .kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .kpiCard { display: flex; min-width: 0; min-height: 116px; align-items: flex-start; gap: 14px; padding: 17px 17px 14px; border: 1px solid #263342; border-radius: 11px; background: linear-gradient(145deg, #121b25, #101720 75%); box-shadow: 0 8px 22px #0000000a; }
@@ -177,6 +185,8 @@
   .pageHeader h1 { font-size: 23px; }
   .subtitle { font-size: 11px; line-height: 1.5; }
   .importButton { min-height: 37px; padding: 0 12px; }
+  .latestImportPanel { align-items: flex-start; flex-wrap: wrap; gap: 10px 16px; }
+  .latestImportMeta { flex: 1 1 100%; }
   .kpiGrid { gap: 9px; }
   .kpiCard { min-height: 105px; gap: 9px; padding: 13px 10px 11px; }
   .kpiIcon { width: 34px; height: 34px; }

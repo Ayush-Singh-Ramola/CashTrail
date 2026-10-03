@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 import { categoryPatchSchema, isPrismaUniqueConstraintError } from "@/lib/validations/finance";
 
 type Context = { params: Promise<{ id: string }> };
@@ -41,7 +42,10 @@ export async function DELETE(_request: Request, { params }: Context) {
   if (!category) return NextResponse.json({ error: "Category not found" }, { status: 404 });
   if (category.isSystem) return NextResponse.json({ error: "Default categories cannot be deleted" }, { status: 409 });
 
-  const transactionCount = await prisma.transaction.count({ where: { userId: session.id, categoryId: id } });
+  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const transactionCount = await prisma.transaction.count({
+    where: excludeDuplicateImports({ userId: session.id, categoryId: id }, duplicateImportIds),
+  });
   if (transactionCount > 0) {
     return NextResponse.json({ error: "Move this category's transactions before deleting it" }, { status: 409 });
   }

@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const now = new Date();
   const currentMonth = format(now, "MMMM yyyy");
-  const reportHref = `/reports/${now.getFullYear()}/${now.getMonth() + 1}`;
+  const reportHref = "/reports";
   const initials = session.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
 
   return (

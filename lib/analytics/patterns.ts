@@ -1,5 +1,6 @@
 import { endOfMonth, startOfMonth, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 
 export interface SpendingPattern {
   type: "small_purchases" | "late_night" | "weekend" | "repeated_merchant" | "recurring_payment";
@@ -247,13 +248,14 @@ export async function detectPatterns(
   const currentStart = startOfMonth(selectedMonth);
   const currentEnd = endOfMonth(selectedMonth);
   const lookbackStart = startOfMonth(subMonths(selectedMonth, 2));
+  const duplicateImportIds = await getDuplicateImportIds(userId);
 
   const rows = await prisma.transaction.findMany({
-    where: {
+    where: excludeDuplicateImports({
       userId,
       type: "EXPENSE",
       transactionDate: { gte: lookbackStart, lte: currentEnd },
-    },
+    }, duplicateImportIds),
     include: { merchant: { select: { name: true } } },
     orderBy: { transactionDate: "asc" },
   });

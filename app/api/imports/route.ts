@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createHash } from "node:crypto";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,7 @@ import { parsePdfStatement } from "@/lib/parsers/pdf";
 import { normalizeWithUserMappings } from "@/lib/merchants/normalize";
 import { matchesSpendingRule } from "@/lib/merchants/rules";
 import { categorizeTransaction } from "@/lib/merchants/categorize";
+import { getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const CREATE_MANY_BATCH_SIZE = 500;
@@ -19,11 +21,13 @@ export async function GET(request: NextRequest) {
   const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 50) : 20;
   const requestedPage = Number(request.nextUrl.searchParams.get("page") || 1);
   const page = Number.isInteger(requestedPage) ? Math.max(requestedPage, 1) : 1;
+  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const where = { userId: session.id, id: { notIn: duplicateImportIds } };
 
   const [imports, total] = await Promise.all([
     prisma.import.findMany({
-      where: { userId: session.id },
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * limit,
       take: limit,
       select: {
@@ -35,7 +39,7 @@ export async function GET(request: NextRequest) {
         createdAt: true,
       },
     }),
-    prisma.import.count({ where: { userId: session.id } }),
+    prisma.import.count({ where }),
   ]);
 
   return NextResponse.json({ imports, total, page, limit });
@@ -79,23 +83,47 @@ export async function POST(request: NextRequest) {
 
     processingStep = "database";
     const contentHash = createHash("sha256").update(bytes).digest("hex");
-    const duplicate = await prisma.import.findUnique({
-      where: { userId_contentHash: { userId: session.id, contentHash } },
-      select: { id: true },
+    const importSetup = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        WITH lock_result AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(${session.id}, hashtext(${contentHash}))
+        )
+        SELECT true AS locked FROM lock_result
+      `;
+
+      const existingImport = await tx.import.findFirst({
+        where: { userId: session.id, contentHash, status: { in: ["COMPLETED", "PROCESSING"] } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, transactionCount: true, status: true },
+      });
+      if (existingImport) return { existingImport, importRecord: null };
+
+      const importRecord = await tx.import.create({
+        data: {
+          userId: session.id,
+          fileName,
+          fileType: isPdf ? "pdf" : "csv",
+          contentHash,
+          status: "PROCESSING",
+        },
+      });
+      return { existingImport: null, importRecord };
     });
-    if (duplicate) {
-      return NextResponse.json({ error: "This statement has already been imported", importId: duplicate.id }, { status: 409 });
+
+    if (importSetup.existingImport) {
+      const existingImport = importSetup.existingImport;
+      if (existingImport.status === "PROCESSING") {
+        return NextResponse.json({ error: "This statement is already being processed. Try again in a moment." }, { status: 409 });
+      }
+      return NextResponse.json({
+        importId: existingImport.id,
+        transactionCount: existingImport.transactionCount,
+        alreadyImported: true,
+      });
     }
 
-    const importRecord = await prisma.import.create({
-      data: {
-        userId: session.id,
-        fileName,
-        fileType: isPdf ? "pdf" : "csv",
-        contentHash,
-        status: "PROCESSING",
-      },
-    });
+    const importRecord = importSetup.importRecord;
+    if (!importRecord) throw new Error("Import record was not created");
     importId = importRecord.id;
 
     processingStep = "parsing";
@@ -117,6 +145,14 @@ export async function POST(request: NextRequest) {
       where: { id: importRecord.id },
       data: { status: "COMPLETED", transactionCount: transactions.length },
     });
+    try {
+      revalidatePath("/dashboard");
+      revalidatePath("/transactions");
+      revalidatePath("/reports");
+      revalidatePath("/reports/[year]/[month]", "page");
+    } catch (error) {
+      console.error("Imported statement pages could not be refreshed:", error);
+    }
 
     try {
       const preferences = await prisma.notificationPreference.findUnique({ where: { userId: session.id } });
@@ -136,12 +172,8 @@ export async function POST(request: NextRequest) {
       console.error("Report notification could not be created");
     }
 
-    return NextResponse.json({ importId: importRecord.id, transactionCount: transactions.length });
+    return NextResponse.json({ importId: importRecord.id, transactionCount: transactions.length, alreadyImported: false });
   } catch (error) {
-    const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
-    if (code === "P2002") {
-      return NextResponse.json({ error: "This statement has already been imported" }, { status: 409 });
-    }
     const parseMessage = error instanceof Error && /^(The selected file|This PDF|No transactions)/.test(error.message)
       ? error.message
       : null;
@@ -149,12 +181,12 @@ export async function POST(request: NextRequest) {
       ? "The PDF reader encountered an internal error. Restart the app and try again; check the app terminal if it continues."
       : null;
     const databaseMessage = processingStep === "database"
-      ? "The file was uploaded, but the database could not start the import. Check that PostgreSQL is running and try again."
+      ? "The file was uploaded, but the database could not create the import record. Check the app terminal for details and try again."
       : processingStep === "saving"
         ? "The statement was read, but its transactions could not be saved. Check the app terminal for the database error and try again."
         : null;
     const errorMessage = parseMessage ?? pdfReaderMessage ?? databaseMessage ?? "The statement could not be processed. Check the file and try again.";
-    if (!parseMessage) console.error(`Statement processing failed during ${processingStep}`);
+    if (!parseMessage) console.error(`Statement processing failed during ${processingStep}:`, error);
     if (importId !== null) {
       try {
         await prisma.import.update({

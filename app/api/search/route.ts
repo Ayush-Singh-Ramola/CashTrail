@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 import { Prisma } from "@/app/generated/prisma/client";
 import { parseNaturalLanguageQuery } from "@/lib/search/natural-language";
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -43,14 +44,16 @@ export async function GET(request: Request) {
     ];
   }
 
+  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const canonicalWhere = excludeDuplicateImports(where, duplicateImportIds);
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
-      where,
+      where: canonicalWhere,
       include: { category: { select: { id: true, name: true, color: true } }, merchant: { select: { id: true, name: true } } },
       orderBy: [{ transactionDate: "desc" }, { id: "desc" }],
       take: 50,
     }),
-    prisma.transaction.count({ where }),
+    prisma.transaction.count({ where: canonicalWhere }),
   ]);
   return NextResponse.json({ query, interpretation: parsed.description, total, transactions });
 }

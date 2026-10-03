@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 import { Prisma } from "@/app/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -67,15 +68,17 @@ export async function GET(request: NextRequest) {
     ];
   }
 
+  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const canonicalWhere = excludeDuplicateImports(where, duplicateImportIds);
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
-      where,
+      where: canonicalWhere,
       include: { category: true, merchant: true },
       orderBy: { transactionDate: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.transaction.count({ where }),
+    prisma.transaction.count({ where: canonicalWhere }),
   ]);
 
   return NextResponse.json({ transactions, total });

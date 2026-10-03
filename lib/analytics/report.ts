@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, endOfMonth, format, getDaysInMonth, subMonths } from "date-fns";
 import type { Category } from "@/app/generated/prisma/client";
+import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
 import { detectPatterns, type SpendingPattern } from "./patterns";
 
 export interface ReportData {
@@ -75,15 +76,16 @@ export async function generateReport(userId: number, year: number, month: number
   const previousMonth = subMonths(selectedMonth, 1);
   const previousMonthStart = startOfMonth(previousMonth);
   const previousMonthEnd = endOfMonth(previousMonth);
+  const duplicateImportIds = await getDuplicateImportIds(userId);
 
   const [transactions, previousTransactions] = await Promise.all([
     prisma.transaction.findMany({
-      where: { userId, transactionDate: { gte: monthStart, lte: monthEnd } },
+      where: excludeDuplicateImports({ userId, transactionDate: { gte: monthStart, lte: monthEnd } }, duplicateImportIds),
       include: { category: true, merchant: true },
       orderBy: { transactionDate: "desc" },
     }),
     prisma.transaction.findMany({
-      where: { userId, type: "EXPENSE", transactionDate: { gte: previousMonthStart, lte: previousMonthEnd } },
+      where: excludeDuplicateImports({ userId, type: "EXPENSE", transactionDate: { gte: previousMonthStart, lte: previousMonthEnd } }, duplicateImportIds),
       include: { category: true },
     }),
   ]);
