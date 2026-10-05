@@ -132,6 +132,9 @@ export default function ImportsPage() {
         spent: resultData.spent,
         alreadyImported,
       });
+      // Clear the client-side Router Cache so the dashboard fetches fresh
+      // server data reflecting the newly imported statement.
+      router.refresh();
       setStage("done");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed");

@@ -1,16 +1,23 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
+import { excludeDuplicateTransactions, getDuplicateImportIds, getDuplicateTransactionIds } from "@/lib/transactions/import-deduplication";
 
 export default async function ReportsIndexPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
   const now = new Date();
-  const duplicateImportIds = await getDuplicateImportIds(session.id);
+  const [duplicateImportIds, duplicateTransactionIds] = await Promise.all([
+    getDuplicateImportIds(session.id),
+    getDuplicateTransactionIds(session.id),
+  ]);
   const latestTransaction = await prisma.transaction.findFirst({
-    where: excludeDuplicateImports({ userId: session.id, transactionDate: { lte: now } }, duplicateImportIds),
+    where: excludeDuplicateTransactions(
+      { userId: session.id, transactionDate: { lte: now } },
+      duplicateTransactionIds,
+      duplicateImportIds,
+    ),
     orderBy: { transactionDate: "desc" },
     select: { transactionDate: true },
   });

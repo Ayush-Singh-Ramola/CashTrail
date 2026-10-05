@@ -10,8 +10,9 @@ import {
   subMonths,
 } from "date-fns";
 import type { CSSProperties } from "react";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { DashboardIcon } from "@/components/dashboard-icon";
-import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
+import { excludeDuplicateTransactions, getDuplicateImportIds, getDuplicateTransactionIds } from "@/lib/transactions/import-deduplication";
 import styles from "./dashboard.module.css";
 
 const chartPalette = ["#89df4b", "#3987f4", "#9e72ef", "#f39646", "#eb6277", "#8293a9"];
@@ -44,39 +45,60 @@ function getCategoryColor(color: string | null | undefined, index: number) {
     : chartPalette[index % chartPalette.length];
 }
 
-async function getDashboardData(userId: number, periodDate: Date, duplicateImportIds: number[]): Promise<DashboardData> {
+async function getDashboardData(
+  userId: number,
+  periodDate: Date,
+  duplicateImportIds: number[],
+  duplicateTransactionIds: number[],
+  requestedImportId?: number,
+): Promise<DashboardData> {
   const currentMonthStart = startOfMonth(periodDate);
   const currentMonthEnd = endOfMonth(periodDate);
   const previousMonth = subMonths(periodDate, 1);
   const lastMonthStart = startOfMonth(previousMonth);
   const lastMonthEnd = endOfMonth(previousMonth);
 
-  const [currentMonthTxns, lastMonthTxns, topMerchants] = await Promise.all([
-    prisma.transaction.findMany({
-      where: excludeDuplicateImports({
+  const currentWhere: Prisma.TransactionWhereInput = requestedImportId
+    ? {
+        userId,
+        importId: requestedImportId,
+        type: "EXPENSE",
+      }
+    : excludeDuplicateTransactions({
         userId,
         transactionDate: { gte: currentMonthStart, lte: currentMonthEnd },
         type: "EXPENSE",
-      }, duplicateImportIds),
+      }, duplicateTransactionIds, duplicateImportIds);
+
+  const previousWhere: Prisma.TransactionWhereInput = requestedImportId
+    ? {
+        userId,
+        importId: requestedImportId,
+        transactionDate: { gte: lastMonthStart, lte: lastMonthEnd },
+        type: "EXPENSE",
+      }
+    : excludeDuplicateTransactions({
+        userId,
+        transactionDate: { gte: lastMonthStart, lte: lastMonthEnd },
+        type: "EXPENSE",
+      }, duplicateTransactionIds, duplicateImportIds);
+
+  const [currentMonthTxns, lastMonthTxns, topMerchants] = await Promise.all([
+    prisma.transaction.findMany({
+      where: currentWhere,
       include: { category: true, merchant: true },
       orderBy: { transactionDate: "desc" },
     }),
     prisma.transaction.findMany({
-      where: excludeDuplicateImports({
-        userId,
-        transactionDate: { gte: lastMonthStart, lte: lastMonthEnd },
-        type: "EXPENSE",
-      }, duplicateImportIds),
+      where: previousWhere,
       include: { category: true },
     }),
     prisma.transaction.groupBy({
       by: ["merchantId"],
-      where: excludeDuplicateImports({
-        userId,
-        transactionDate: { gte: currentMonthStart, lte: currentMonthEnd },
-        type: "EXPENSE",
+      where: {
+        ...currentWhere,
         merchantId: { not: null },
-      }, duplicateImportIds),
+      },
       _sum: { amount: true },
       _count: { id: true },
       orderBy: { _sum: { amount: "desc" } },
@@ -135,7 +157,7 @@ async function getDashboardData(userId: number, periodDate: Date, duplicateImpor
   const smallPercent = currentTotal > 0 ? (smallTotal / currentTotal) * 100 : 0;
   const foodDeliveryTotal = currentMonthTxns
     .filter((transaction) => {
-      const merchantName = transaction.merchant?.name?.toLowerCase() ?? "";
+      const merchantName = (transaction.merchant?.name || transaction.normalizedDesc || transaction.description || "").toLowerCase();
       return merchantName.includes("zomato") || merchantName.includes("swiggy");
     })
     .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
@@ -149,19 +171,27 @@ async function getDashboardData(userId: number, periodDate: Date, duplicateImpor
     amount: Number(transaction.amount),
   }));
 
-  const daysInMonth = getDaysInMonth(periodDate);
+  const primaryDate = currentMonthTxns[0]?.transactionDate || periodDate;
+  const daysInMonth = getDaysInMonth(primaryDate);
   const currentByDay = Array.from({ length: daysInMonth }, () => 0);
-  const previousByDay = Array.from({ length: getDaysInMonth(previousMonth) }, () => 0);
+  const previousByDay = Array.from({ length: daysInMonth }, () => 0);
   for (const transaction of currentMonthTxns) {
-    currentByDay[transaction.transactionDate.getDate() - 1] += Number(transaction.amount);
+    const day = transaction.transactionDate.getDate();
+    if (day >= 1 && day <= daysInMonth) {
+      currentByDay[day - 1] += Number(transaction.amount);
+    }
   }
   for (const transaction of lastMonthTxns) {
-    previousByDay[transaction.transactionDate.getDate() - 1] += Number(transaction.amount);
+    const day = transaction.transactionDate.getDate();
+    if (day >= 1 && day <= daysInMonth) {
+      previousByDay[day - 1] += Number(transaction.amount);
+    }
   }
-  const visibleDays = Math.min(periodDate.getDate(), daysInMonth);
-  const dailySpend = Array.from({ length: visibleDays }, (_, index) => ({
+  const isCurrentCalendarMonth = new Date().getFullYear() === periodDate.getFullYear() && new Date().getMonth() === periodDate.getMonth();
+  const visibleDays = isCurrentCalendarMonth ? Math.min(new Date().getDate(), daysInMonth) : daysInMonth;
+  const dailySpend = Array.from({ length: Math.max(1, visibleDays) }, (_, index) => ({
     day: index + 1,
-    current: currentByDay[index],
+    current: currentByDay[index] ?? 0,
     previous: previousByDay[index] ?? 0,
   }));
 
@@ -261,22 +291,38 @@ function SpendingChart({ data, monthName, monthAbbreviation, previousMonthName }
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ importId?: string }>;
+} = {}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const requestedImportId = resolvedParams?.importId ? parseInt(resolvedParams.importId, 10) : undefined;
+
+
   const now = new Date();
-  const duplicateImportIds = await getDuplicateImportIds(session.id);
-  const latestExpense = await prisma.transaction.findFirst({
-    where: excludeDuplicateImports({ userId: session.id, type: "EXPENSE", transactionDate: { lte: now } }, duplicateImportIds),
-    orderBy: { transactionDate: "desc" },
-    select: { transactionDate: true },
-  });
+  const [duplicateImportIds, duplicateTransactionIds] = await Promise.all([
+    getDuplicateImportIds(session.id),
+    getDuplicateTransactionIds(session.id),
+  ]);
+
   const latestImport = await prisma.import.findFirst({
-    where: { userId: session.id, status: "COMPLETED" },
+    where: {
+      userId: session.id,
+      status: "COMPLETED",
+      ...(requestedImportId
+        ? { id: requestedImportId }
+        : duplicateImportIds.length > 0
+          ? { id: { notIn: duplicateImportIds } }
+          : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true, fileName: true, transactionCount: true },
+    select: { id: true, fileName: true, transactionCount: true, createdAt: true },
   });
+
   const latestImportTotals = latestImport
     ? await prisma.transaction.groupBy({
         by: ["type"],
@@ -286,15 +332,37 @@ export default async function DashboardPage() {
     : [];
   const latestImportIncome = Number(latestImportTotals.find((total) => total.type === "INCOME")?._sum.amount ?? 0);
   const latestImportSpent = Number(latestImportTotals.find((total) => total.type === "EXPENSE")?._sum.amount ?? 0);
+
+  const latestExpense = await prisma.transaction.findFirst({
+    where: requestedImportId
+      ? { userId: session.id, importId: requestedImportId, type: "EXPENSE" }
+      : excludeDuplicateTransactions(
+          { userId: session.id, type: "EXPENSE", transactionDate: { lte: now } },
+          duplicateTransactionIds,
+          duplicateImportIds,
+        ),
+    orderBy: { transactionDate: "desc" },
+    select: { transactionDate: true },
+  });
+
   const hasCurrentMonthSpending = latestExpense
     ? latestExpense.transactionDate.getFullYear() === now.getFullYear()
       && latestExpense.transactionDate.getMonth() === now.getMonth()
     : false;
   const periodDate = latestExpense && !hasCurrentMonthSpending ? endOfMonth(latestExpense.transactionDate) : now;
-  const previousMonth = subMonths(periodDate, 1);
-  const data = await getDashboardData(session.id, periodDate, duplicateImportIds);
-  const monthName = format(periodDate, "MMMM yyyy");
-  const periodMonthName = format(periodDate, "MMMM");
+
+  const data = await getDashboardData(
+    session.id,
+    periodDate,
+    duplicateImportIds,
+    duplicateTransactionIds,
+    requestedImportId,
+  );
+
+  const primaryDate = data.recentTransactions[0]?.date || latestExpense?.transactionDate || periodDate;
+  const monthName = format(primaryDate, "MMMM yyyy");
+  const periodMonthName = format(primaryDate, "MMMM");
+  const previousMonth = subMonths(primaryDate, 1);
   const previousMonthName = format(previousMonth, "MMMM yyyy");
   const changeDown = data.changePercent < 0;
   const comparisonDelta = data.currentTotal - data.lastTotal;
@@ -322,7 +390,13 @@ export default async function DashboardPage() {
         <div>
           <p className={styles.overline}><span /> YOUR MONEY, AT A GLANCE</p>
           <h1>{greeting}, {firstName}</h1>
-          <p className={styles.subtitle}>Your account activity in {monthName}, across imported statements.</p>
+          <p className={styles.subtitle}>
+            {requestedImportId
+              ? `Showing activity from ${latestImport?.fileName ?? "selected import"}.`
+              : latestImport
+                ? `Your account activity in ${monthName}, across imported statements.`
+                : "Import a statement to see your account activity."}
+          </p>
         </div>
         <Link href="/imports" className={styles.importButton}>
           <DashboardIcon name="import" size={17} />
@@ -333,7 +407,7 @@ export default async function DashboardPage() {
       {latestImport && (
         <article className={`${styles.panel} ${styles.latestImportPanel}`} aria-label="Latest statement summary">
           <div className={styles.latestImportMeta}>
-            <p>Latest statement</p>
+            <p>{requestedImportId ? "Selected statement" : "Latest statement"}</p>
             <strong title={latestImport.fileName}>{latestImport.fileName}</strong>
             <small>{latestImport.transactionCount.toLocaleString("en-IN")} transactions in this file</small>
           </div>

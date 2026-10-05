@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, endOfMonth, format, getDaysInMonth, subMonths } from "date-fns";
 import type { Category } from "@/app/generated/prisma/client";
-import { excludeDuplicateImports, getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
+import { excludeDuplicateTransactions, getDuplicateImportIds, getDuplicateTransactionIds } from "@/lib/transactions/import-deduplication";
 import { detectPatterns, type SpendingPattern } from "./patterns";
 
 export interface ReportData {
@@ -76,16 +76,27 @@ export async function generateReport(userId: number, year: number, month: number
   const previousMonth = subMonths(selectedMonth, 1);
   const previousMonthStart = startOfMonth(previousMonth);
   const previousMonthEnd = endOfMonth(previousMonth);
-  const duplicateImportIds = await getDuplicateImportIds(userId);
+  const [duplicateImportIds, duplicateTransactionIds] = await Promise.all([
+    getDuplicateImportIds(userId),
+    getDuplicateTransactionIds(userId),
+  ]);
 
   const [transactions, previousTransactions] = await Promise.all([
     prisma.transaction.findMany({
-      where: excludeDuplicateImports({ userId, transactionDate: { gte: monthStart, lte: monthEnd } }, duplicateImportIds),
+      where: excludeDuplicateTransactions(
+        { userId, transactionDate: { gte: monthStart, lte: monthEnd } },
+        duplicateTransactionIds,
+        duplicateImportIds,
+      ),
       include: { category: true, merchant: true },
       orderBy: { transactionDate: "desc" },
     }),
     prisma.transaction.findMany({
-      where: excludeDuplicateImports({ userId, type: "EXPENSE", transactionDate: { gte: previousMonthStart, lte: previousMonthEnd } }, duplicateImportIds),
+      where: excludeDuplicateTransactions(
+        { userId, type: "EXPENSE", transactionDate: { gte: previousMonthStart, lte: previousMonthEnd } },
+        duplicateTransactionIds,
+        duplicateImportIds,
+      ),
       include: { category: true },
     }),
   ]);

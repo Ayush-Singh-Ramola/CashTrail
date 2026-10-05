@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { summarizeImportTransactions } from "@/lib/imports/summary";
 
 export async function GET(
   _request: Request,
@@ -27,21 +28,17 @@ export async function GET(
     return NextResponse.json({ error: "Import not found" }, { status: 404 });
   }
 
-  const income = importRecord.transactions
-    .filter((t) => t.type === "INCOME")
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-
-  const spent = importRecord.transactions
-    .filter((t) => t.type === "EXPENSE")
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const totals = summarizeImportTransactions(importRecord.transactions);
 
   return NextResponse.json({
     id: importRecord.id,
     fileName: importRecord.fileName,
     status: importRecord.status,
-    transactionCount: importRecord.transactionCount,
-    income,
-    spent,
+    transactionCount: totals.transactionCount,
+    debitCount: totals.debitCount,
+    creditCount: totals.creditCount,
+    income: totals.received,
+    spent: totals.spent,
     transactions: importRecord.transactions,
   });
 }

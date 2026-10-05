@@ -44,30 +44,32 @@ model Import {
 }
 
 model Transaction {
-  id              Int                     @id @default(autoincrement())
-  userId          Int
-  importId        Int?
-  merchantId      Int?
-  categoryId      Int?
-  amount          Decimal
-  type            TransactionType
-  description     String?
-  normalizedDesc  String?
-  transactionDate DateTime
-  transactionTime DateTime?
-  classification  SpendingClassification?
-  notes           String?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  category        Category?               @relation(fields: [categoryId], references: [id])
-  import          Import?                 @relation(fields: [importId], references: [id])
-  merchant        Merchant?               @relation(fields: [merchantId], references: [id])
-  user            User                    @relation(fields: [userId], references: [id])
+  id                  Int                     @id @default(autoincrement())
+  userId              Int
+  importId            Int?
+  sourceTransactionId String?
+  merchantId          Int?
+  categoryId          Int?
+  amount              Decimal
+  type                TransactionType
+  description         String?
+  normalizedDesc      String?
+  transactionDate     DateTime
+  transactionTime     DateTime?
+  classification      SpendingClassification?
+  notes               String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  category            Category?               @relation(fields: [categoryId], references: [id])
+  import              Import?                 @relation(fields: [importId], references: [id])
+  merchant            Merchant?               @relation(fields: [merchantId], references: [id])
+  user                User                    @relation(fields: [userId], references: [id])
 
   @@index([userId, transactionDate])
   @@index([userId, merchantId])
   @@index([userId, categoryId])
   @@index([importId])
+  @@index([userId, sourceTransactionId])
 }
 
 model Merchant {

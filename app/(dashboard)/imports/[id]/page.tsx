@@ -19,6 +19,8 @@ interface ImportData {
   id: number;
   fileName: string;
   transactionCount: number;
+  debitCount: number;
+  creditCount: number;
   income: number;
   spent: number;
   transactions: Transaction[];
@@ -126,7 +128,7 @@ export default function ImportReviewPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Review Import</h1>
-          <p className="text-gray-500 mt-1">{data.fileName} • {data.transactionCount} transactions</p>
+          <p className="text-gray-500 mt-1">{data.fileName} • {data.transactionCount} transactions ({data.debitCount} debits, {data.creditCount} credits)</p>
         </div>
       </div>
 

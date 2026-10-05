@@ -9,6 +9,7 @@ import { normalizeWithUserMappings } from "@/lib/merchants/normalize";
 import { matchesSpendingRule } from "@/lib/merchants/rules";
 import { categorizeTransaction } from "@/lib/merchants/categorize";
 import { getDuplicateImportIds } from "@/lib/transactions/import-deduplication";
+import { createImportIfAbsent } from "@/lib/imports/idempotency";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const CREATE_MANY_BATCH_SIZE = 500;
@@ -83,32 +84,12 @@ export async function POST(request: NextRequest) {
 
     processingStep = "database";
     const contentHash = createHash("sha256").update(bytes).digest("hex");
-    const importSetup = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`
-        WITH lock_result AS MATERIALIZED (
-          SELECT pg_advisory_xact_lock(${session.id}, hashtext(${contentHash}))
-        )
-        SELECT true AS locked FROM lock_result
-      `;
-
-      const existingImport = await tx.import.findFirst({
-        where: { userId: session.id, contentHash, status: { in: ["COMPLETED", "PROCESSING"] } },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { id: true, transactionCount: true, status: true },
-      });
-      if (existingImport) return { existingImport, importRecord: null };
-
-      const importRecord = await tx.import.create({
-        data: {
-          userId: session.id,
-          fileName,
-          fileType: isPdf ? "pdf" : "csv",
-          contentHash,
-          status: "PROCESSING",
-        },
-      });
-      return { existingImport: null, importRecord };
-    });
+    const importSetup = await prisma.$transaction((tx) => createImportIfAbsent(tx, {
+      userId: session.id,
+      fileName,
+      fileType: isPdf ? "pdf" : "csv",
+      contentHash,
+    }));
 
     if (importSetup.existingImport) {
       const existingImport = importSetup.existingImport;
@@ -239,7 +220,7 @@ async function processTransactions(userId: number, importId: number, transaction
       const normalizedName = normalizeWithUserMappings(transaction.description, merchants);
       const merchant = merchantMap.get(normalizedName.toLowerCase());
       const matchedRule = rules.find((rule) => matchesRule(transaction, normalizedName, rule, merchant?.id));
-      const defaultCategory = categorizeTransaction(normalizedName, transaction.description, categories);
+      const defaultCategory = categorizeTransaction(normalizedName, transaction.description, categories, transaction.type);
       const categoryId = matchedRule?.categoryId ?? merchant?.defaultCategoryId ?? defaultCategory.categoryId ?? null;
       const category = categoryId === null ? undefined : categoryMap.get(categoryId);
       const classification = matchedRule?.classification ?? merchant?.classification ?? category?.classification ?? defaultCategory.classification ?? null;
@@ -251,6 +232,7 @@ async function processTransactions(userId: number, importId: number, transaction
         categoryId,
         amount: transaction.amount,
         type: transaction.type,
+        sourceTransactionId: transaction.sourceTransactionId ?? null,
         description: transaction.description,
         normalizedDesc: normalizedName,
         transactionDate: transaction.date,

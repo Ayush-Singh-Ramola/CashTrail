@@ -4,6 +4,7 @@ export interface ParsedTransaction {
   description: string;
   amount: number;
   type: "INCOME" | "EXPENSE" | "TRANSFER";
+  sourceTransactionId?: string | null;
 }
 
 export function decodeCSVBytes(bytes: Uint8Array): string {
@@ -76,6 +77,7 @@ interface ColumnIndexes {
   creditIdx: number;
   typeIdx: number;
   statusIdx: number;
+  sourceTransactionIdIdx: number;
 }
 
 function normalizeHeader(h: string): string {
@@ -95,6 +97,7 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
     let creditIdx = -1;
     let typeIdx = -1;
     let statusIdx = -1;
+    let sourceTransactionIdIdx = -1;
 
     for (let c = 0; c < row.length; c++) {
       const header = norm[c];
@@ -146,7 +149,7 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
         raw.includes("debit") ||
         raw.includes("withdrawal")
       ) {
-        if (debitIdx === -1 && header !== "creditdebit" && header !== "crdr") debitIdx = c;
+        if (debitIdx === -1 && header !== "creditdebit" && header !== "debitcredit" && header !== "crdr" && header !== "drcr") debitIdx = c;
       }
 
       // Credit match
@@ -159,7 +162,7 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
         raw.includes("credit") ||
         raw.includes("deposit")
       ) {
-        if (creditIdx === -1 && header !== "creditdebit" && header !== "crdr") creditIdx = c;
+        if (creditIdx === -1 && header !== "creditdebit" && header !== "debitcredit" && header !== "crdr" && header !== "drcr") creditIdx = c;
       }
 
       // Type match
@@ -186,6 +189,11 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
       ) {
         if (statusIdx === -1) statusIdx = c;
       }
+
+      // Optional statement-provided transaction reference (UTR/RRN/reference ID).
+      if (/^(?:utr(?:no|number)?|rrn|transactionutr|transactionidutr|(?:upi)?txn(?:id|no|number|ref|reference)|(?:upi)?transaction(?:id|no|number|ref|reference)(?:no|number)?|(?:bank)?reference(?:id|no|number)?|(?:bank)?ref(?:id|no|number)?|payment(?:id|reference))$/.test(header)) {
+        if (sourceTransactionIdIdx === -1) sourceTransactionIdIdx = c;
+      }
     }
 
     const hasDate = dateIdx !== -1;
@@ -204,6 +212,7 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
           creditIdx,
           typeIdx,
           statusIdx,
+          sourceTransactionIdIdx,
         },
       };
     }
@@ -214,6 +223,11 @@ function findHeaderRow(rows: string[][]): { headerIndex: number; columns: Column
 
 function parseAmountValue(raw: string): number {
   if (!raw) return 0;
+  const sourceNumber = raw.trim().replace(/[₹$€£\s]/g, "").replace(/^(inr|rs\.?)/i, "");
+  const parenthesized = /^\((.*)\)$/.exec(sourceNumber);
+  const numberText = parenthesized ? parenthesized[1] : sourceNumber;
+  const validNumber = /^[+-]?(?:(?:\d{1,3}(?:,\d{3})+)|(?:\d{1,2}(?:,\d{2})*,\d{3})|\d+)(?:\.\d+)?$/;
+  if (!validNumber.test(numberText)) return 0;
   // Remove currency signs, commas, whitespace
   let clean = raw.replace(/[₹$€£\s,]/g, "");
   // Remove "INR", "Rs.", "Rs"
@@ -244,6 +258,54 @@ function isFailedStatus(statusStr: string): boolean {
     "pending",
   ];
   return failureKeywords.some((kw) => norm.includes(kw));
+}
+
+function parseExplicitTransactionType(rawType: string): ParsedTransaction["type"] | null {
+  const normalized = rawType.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const compact = normalized.replace(/[^a-z]/g, "");
+  if (compact.includes("transfer") || compact === "trf") return "TRANSFER";
+  if (
+    compact.includes("credit") ||
+    compact === "cr" ||
+    compact === "c" ||
+    compact.includes("deposit") ||
+    compact.includes("received") ||
+    compact.includes("income")
+  ) {
+    return "INCOME";
+  }
+  if (
+    compact.includes("debit") ||
+    compact === "dr" ||
+    compact === "d" ||
+    compact.includes("withdrawal") ||
+    compact.includes("expense") ||
+    compact.includes("payment")
+  ) {
+    return "EXPENSE";
+  }
+  return null;
+}
+
+function inferTransactionType(parsedAmount: number, description: string): ParsedTransaction["type"] {
+  if (parsedAmount < 0) return "EXPENSE";
+
+  const descLower = description.toLowerCase().trim();
+  if (
+    descLower.includes("received from") ||
+    descLower.includes("cashback") ||
+    descLower.includes("refund") ||
+    descLower.includes("interest credited") ||
+    descLower.includes("salary") ||
+    descLower.includes("reversal") ||
+    descLower.includes("money received") ||
+    descLower.includes("credited")
+  ) {
+    return "INCOME";
+  }
+  return "EXPENSE";
 }
 
 const MONTH_NAMES: Record<string, number> = {
@@ -443,6 +505,9 @@ export function parseCSV(csvText: string): ParsedTransaction[] {
     // Resolve Amount and Type
     let amount = 0;
     let type: "INCOME" | "EXPENSE" | "TRANSFER" = "EXPENSE";
+    const explicitType = columns.typeIdx !== -1 && columns.typeIdx < row.length
+      ? parseExplicitTransactionType(row[columns.typeIdx])
+      : null;
 
     const hasDebitCredit =
       columns.debitIdx !== -1 &&
@@ -454,65 +519,46 @@ export function parseCSV(csvText: string): ParsedTransaction[] {
       const debitVal = parseAmountValue(row[columns.debitIdx]);
       const creditVal = parseAmountValue(row[columns.creditIdx]);
 
-      if (debitVal > 0) {
+      if (explicitType) {
+        type = explicitType;
+        const directionalAmount = explicitType === "INCOME"
+          ? creditVal
+          : explicitType === "EXPENSE"
+            ? debitVal
+            : 0;
+        if (directionalAmount > 0) {
+          amount = directionalAmount;
+        } else if (columns.amountIdx !== -1 && columns.amountIdx < row.length) {
+          amount = Math.abs(parseAmountValue(row[columns.amountIdx]));
+        } else {
+          amount = Math.max(debitVal, creditVal);
+        }
+      } else if (debitVal > 0) {
         amount = debitVal;
         type = "EXPENSE";
       } else if (creditVal > 0) {
         amount = creditVal;
         type = "INCOME";
       } else if (columns.amountIdx !== -1 && columns.amountIdx < row.length) {
-        amount = Math.abs(parseAmountValue(row[columns.amountIdx]));
+        const parsedAmount = parseAmountValue(row[columns.amountIdx]);
+        amount = Math.abs(parsedAmount);
+        type = inferTransactionType(parsedAmount, description);
       }
     } else if (columns.amountIdx !== -1 && columns.amountIdx < row.length) {
       const rawAmt = row[columns.amountIdx];
       const parsedAmt = parseAmountValue(rawAmt);
       amount = Math.abs(parsedAmt);
 
-      // Check explicit type column
-      let explicitType: string | null = null;
-      if (columns.typeIdx !== -1 && columns.typeIdx < row.length) {
-        explicitType = row[columns.typeIdx].trim().toLowerCase();
-      }
-
       if (explicitType) {
-        if (
-          explicitType.includes("credit") ||
-          explicitType === "cr" ||
-          explicitType === "c" ||
-          explicitType.includes("deposit") ||
-          explicitType.includes("received")
-        ) {
-          type = "INCOME";
-        } else if (
-          explicitType.includes("transfer") ||
-          explicitType === "trf"
-        ) {
-          type = "TRANSFER";
-        } else {
-          type = "EXPENSE";
-        }
-      } else if (parsedAmt < 0) {
-        type = "EXPENSE";
+        type = explicitType;
       } else {
-        // Check keywords in description or raw amount
-        const descLower = description.toLowerCase();
-        if (
-          descLower.startsWith("received from") ||
-          descLower.includes("cashback received") ||
-          descLower.includes("refund from") ||
-          descLower.includes("interest credited") ||
-          descLower.includes("salary")
-        ) {
-          type = "INCOME";
-        } else {
-          type = "EXPENSE";
-        }
+        type = inferTransactionType(parsedAmt, description);
       }
     } else if (columns.debitIdx !== -1 && columns.debitIdx < row.length) {
       const debitVal = parseAmountValue(row[columns.debitIdx]);
       if (debitVal > 0) {
         amount = debitVal;
-        type = "EXPENSE";
+        type = explicitType ?? "EXPENSE";
       }
     }
 
@@ -526,6 +572,9 @@ export function parseCSV(csvText: string): ParsedTransaction[] {
       description: description || "Unknown transaction",
       amount,
       type,
+      sourceTransactionId: columns.sourceTransactionIdIdx !== -1 && columns.sourceTransactionIdIdx < row.length
+        ? row[columns.sourceTransactionIdIdx].trim() || null
+        : null,
     });
   }
 

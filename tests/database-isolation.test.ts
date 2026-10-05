@@ -27,14 +27,6 @@ test("transactions remain scoped to their owning user", { skip: !testDatabaseUrl
       prisma.transaction.create({ data: { userId: first.id, categoryId: firstCategory.id, amount: 100, type: "EXPENSE", description: "A row", transactionDate: new Date("2026-09-01T12:00:00Z") } }),
       prisma.transaction.create({ data: { userId: second.id, categoryId: secondCategory.id, amount: 200, type: "EXPENSE", description: "B row", transactionDate: new Date("2026-09-02T12:00:00Z") } }),
     ]);
-    await prisma.transaction.createMany({
-      data: [
-        { userId: first.id, categoryId: firstCategory.id, amount: 500, type: "EXPENSE", description: "A food row", transactionDate: new Date("2026-09-03T12:00:00Z") },
-        { userId: first.id, categoryId: firstCategory.id, amount: 25_000, type: "INCOME", description: "A income row", transactionDate: new Date("2026-09-04T12:00:00Z") },
-        { userId: first.id, categoryId: firstCategory.id, amount: 700, type: "EXPENSE", description: "A previous month row", transactionDate: new Date("2026-08-04T12:00:00Z") },
-      ],
-    });
-
     const [firstRows, secondRows] = await Promise.all([
       prisma.transaction.findMany({ where: { userId: first.id } }),
       prisma.transaction.findMany({ where: { userId: second.id } }),
@@ -43,6 +35,113 @@ test("transactions remain scoped to their owning user", { skip: !testDatabaseUrl
     assert.deepEqual(secondRows.map((row) => row.description), ["B row"]);
     assert.equal(firstRows.some((row) => row.userId !== first.id), false);
     assert.equal(secondRows.some((row) => row.userId !== second.id), false);
+
+    await prisma.transaction.createMany({
+      data: [
+        { userId: first.id, categoryId: firstCategory.id, amount: 500, type: "EXPENSE", description: "A food row", transactionDate: new Date("2026-09-03T12:00:00Z") },
+        { userId: first.id, categoryId: firstCategory.id, amount: 25_000, type: "INCOME", description: "A income row", transactionDate: new Date("2026-09-04T12:00:00Z") },
+        { userId: first.id, categoryId: firstCategory.id, amount: 700, type: "EXPENSE", description: "A previous month row", transactionDate: new Date("2026-08-04T12:00:00Z") },
+      ],
+    });
+
+    const [{ createImportIfAbsent }, { summarizeImportTransactions }, { excludeDuplicateTransactions, getDuplicateTransactionIds }] = await Promise.all([
+      import("../lib/imports/idempotency"),
+      import("../lib/imports/summary"),
+      import("../lib/transactions/import-deduplication"),
+    ]);
+    const phonePeInput = {
+      userId: first.id,
+      fileName: "phonepe-idempotency-test.csv",
+      fileType: "csv",
+      contentHash: `phonepe-${suffix}`,
+    };
+    const firstReservation = await prisma.$transaction((tx) => createImportIfAbsent(tx, phonePeInput));
+    assert.ok(firstReservation.importRecord);
+    const firstImport = firstReservation.importRecord;
+    const secondImport = await prisma.import.create({
+      data: {
+        userId: first.id,
+        fileName: "overlapping-statement-test.csv",
+        fileType: "csv",
+        contentHash: `overlap-${suffix}`,
+        status: "COMPLETED",
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { userId: first.id, importId: firstImport.id, amount: 1500, type: "EXPENSE", description: "Paid to Ayush", transactionDate: new Date("2026-10-02T12:00:00Z") },
+        { userId: first.id, importId: firstImport.id, amount: 2500, type: "INCOME", description: "Received from Vijay", transactionDate: new Date("2026-10-02T12:00:00Z") },
+        { userId: first.id, importId: secondImport.id, amount: 99999, type: "EXPENSE", description: "Other statement row", transactionDate: new Date("2026-10-02T12:00:00Z") },
+      ],
+    });
+    await prisma.import.update({ where: { id: firstImport.id }, data: { status: "COMPLETED", transactionCount: 2 } });
+    const importWithTransactions = await prisma.import.findUniqueOrThrow({
+      where: { id: firstImport.id },
+      include: { transactions: true },
+    });
+    assert.deepEqual(summarizeImportTransactions(importWithTransactions.transactions), {
+      transactionCount: 2,
+      debitCount: 1,
+      creditCount: 1,
+      spent: 1500,
+      received: 2500,
+    });
+
+    const repeatedReservation = await prisma.$transaction((tx) => createImportIfAbsent(tx, phonePeInput));
+    assert.equal(repeatedReservation.existingImport?.id, firstImport.id);
+    assert.equal(repeatedReservation.importRecord, null);
+    assert.equal(await prisma.import.count({ where: { userId: first.id, contentHash: phonePeInput.contentHash } }), 1);
+    assert.equal(await prisma.transaction.count({ where: { importId: firstImport.id } }), 2);
+
+    const olderOverlap = await prisma.import.create({
+      data: {
+        userId: first.id,
+        fileName: "phonepe-reference-old.csv",
+        fileType: "csv",
+        contentHash: `reference-old-${suffix}`,
+        status: "COMPLETED",
+      },
+    });
+    const newerOverlap = await prisma.import.create({
+      data: {
+        userId: first.id,
+        fileName: "phonepe-reference-new.csv",
+        fileType: "csv",
+        contentHash: `reference-new-${suffix}`,
+        status: "COMPLETED",
+      },
+    });
+    const olderReference = await prisma.transaction.create({
+      data: {
+        userId: first.id,
+        importId: olderOverlap.id,
+        sourceTransactionId: `UTR-${suffix}`,
+        amount: 42,
+        type: "INCOME",
+        description: "Received from a test sender",
+        transactionDate: new Date("2026-10-03T12:00:00Z"),
+      },
+    });
+    const newerMisclassifiedReference = await prisma.transaction.create({
+      data: {
+        userId: first.id,
+        importId: newerOverlap.id,
+        sourceTransactionId: `UTR-${suffix}`,
+        amount: 42,
+        type: "EXPENSE",
+        description: "Received from a test sender",
+        transactionDate: new Date("2026-10-03T12:00:00Z"),
+      },
+    });
+    const duplicateTransactionIds = await getDuplicateTransactionIds(first.id);
+    assert.equal(duplicateTransactionIds.includes(newerMisclassifiedReference.id), true);
+    const canonicalOverlapRows = await prisma.transaction.findMany({
+      where: excludeDuplicateTransactions(
+        { userId: first.id, importId: { in: [olderOverlap.id, newerOverlap.id] } },
+        duplicateTransactionIds,
+      ),
+    });
+    assert.deepEqual(canonicalOverlapRows.map((row) => row.id), [olderReference.id]);
 
     const { generateReport, getMonthlyComparison } = await import("../lib/analytics/report");
     const [firstReport, secondReport, comparison] = await Promise.all([

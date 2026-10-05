@@ -19,22 +19,98 @@ const MERCHANT_CATEGORIES: Record<string, { category: string; classification: "E
   gpay: { category: "Other", classification: "CUSTOM" },
 };
 
+const KEYWORD_RULES: Array<{ category: string; classification: "ESSENTIAL" | "USEFUL" | "DISCRETIONARY" | "CUSTOM"; keywords: string[] }> = [
+  {
+    category: "Food",
+    classification: "DISCRETIONARY",
+    keywords: ["cafe", "restaurant", "momo", "dhaba", "food", "bakery", "sweets", "kitchen", "tea", "coffee", "bhojnalaya", "hotel", "burger", "pizza", "biryani", "canteen", "snacks", "dining"],
+  },
+  {
+    category: "Travel",
+    classification: "ESSENTIAL",
+    keywords: ["fuel", "petrol", "diesel", "hpcl", "bpcl", "ioc", "auto", "metro", "irctc", "railway", "cab", "toll", "parking", "flight", "transport"],
+  },
+  {
+    category: "Shopping",
+    classification: "DISCRETIONARY",
+    keywords: ["mart", "store", "supermarket", "retail", "garment", "hosiery", "zudio", "fashion", "mall", "clothing", "dress", "footwear", "bazaar"],
+  },
+  {
+    category: "Health",
+    classification: "ESSENTIAL",
+    keywords: ["medical", "pharmacy", "chemist", "clinic", "hospital", "pharma", "apollo", "medicos", "health", "dental", "doctor"],
+  },
+  {
+    category: "Bills",
+    classification: "ESSENTIAL",
+    keywords: ["recharge", "electricity", "bill", "broadband", "water", "gas", "utility", "postpaid", "dth"],
+  },
+  {
+    category: "Entertainment",
+    classification: "DISCRETIONARY",
+    keywords: ["cinema", "theatre", "movie", "bookmyshow", "pvr", "inox", "gaming", "steam"],
+  },
+  {
+    category: "Education",
+    classification: "USEFUL",
+    keywords: ["school", "college", "university", "institute", "course", "fees", "tuition", "books"],
+  },
+];
+
 export function categorizeTransaction(
   merchantName: string,
-  _description: string,
-  categories: Category[]
+  description: string,
+  categories: Category[],
+  type?: "INCOME" | "EXPENSE" | "TRANSFER"
 ): { categoryId?: number; classification?: "ESSENTIAL" | "USEFUL" | "DISCRETIONARY" | "CUSTOM" } {
-  const normalized = merchantName.toLowerCase();
+  const normMerchant = merchantName.toLowerCase();
+  const normDesc = description.toLowerCase();
+  const combined = `${normMerchant} ${normDesc}`;
 
+  const isIncome = type === "INCOME" ||
+    normDesc.startsWith("received from") ||
+    normDesc.includes("cashback") ||
+    normDesc.includes("refund from") ||
+    normDesc.includes("interest credited") ||
+    normDesc.includes("salary");
+
+  if (isIncome) {
+    const incomeCategory = categories.find((c) => c.type === "INCOME" || c.name.toLowerCase() === "income");
+    if (incomeCategory) {
+      return {
+        categoryId: incomeCategory.id,
+        classification: "ESSENTIAL",
+      };
+    }
+  }
+
+  // 1. Direct merchant matching
   for (const [merchant, info] of Object.entries(MERCHANT_CATEGORIES)) {
-    if (normalized.includes(merchant)) {
+    if (normMerchant.includes(merchant) || normDesc.includes(merchant)) {
       const category = categories.find(
         (c) => c.name.toLowerCase() === info.category.toLowerCase()
       );
-      return {
-        categoryId: category?.id,
-        classification: info.classification,
-      };
+      if (category) {
+        return {
+          categoryId: category.id,
+          classification: info.classification,
+        };
+      }
+    }
+  }
+
+  // 2. Keyword heuristic matching from merchant name and description
+  for (const rule of KEYWORD_RULES) {
+    if (rule.keywords.some((kw) => combined.includes(kw))) {
+      const category = categories.find(
+        (c) => c.name.toLowerCase() === rule.category.toLowerCase()
+      );
+      if (category) {
+        return {
+          categoryId: category.id,
+          classification: rule.classification,
+        };
+      }
     }
   }
 
